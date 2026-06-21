@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+            nodejs 'node-22'
+        }
+
     stages {
         stage('Frontend Build') {
             steps {
