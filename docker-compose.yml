@@ -1,0 +1,204 @@
+x-business-env: &business-env
+  EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://discovery-server:8761/eureka
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+  SPRING_APPLICATION_JSON: '{"eureka":{"client":{"serviceUrl":{"defaultZone":"http://discovery-server:8761/eureka"}}}}'
+  KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/budgetquest
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8080/realms/budgetquest
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/budgetquest/protocol/openid-connect/certs
+
+services:
+  discovery-server:
+    build:
+      context: ./backend/discovery-server
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+
+  config-server:
+    build:
+      context: ./backend/config-server
+    container_name: config-server
+    ports:
+      - "8762:8762"
+    environment: &eureka-env
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://discovery-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+      SPRING_APPLICATION_JSON: '{"eureka":{"client":{"serviceUrl":{"defaultZone":"http://discovery-server:8761/eureka"}}}}'
+    depends_on:
+      - discovery-server
+
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+    container_name: api-gateway
+    ports:
+      - "8763:8763"
+    environment:
+      <<: *eureka-env
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8762
+      SERVER_PORT: 8763
+    depends_on:
+      - discovery-server
+      - config-server
+
+  postgres:
+    image: postgres:16
+    container_name: budgetquest-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: budgetquest
+      POSTGRES_USER: budgetquest
+      POSTGRES_PASSWORD: budgetquest
+    volumes:
+      - budgetquest-postgres-data:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: budgetquest-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: budgetquest-keycloak
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: start-dev
+
+  user-service:
+    build:
+      context: ./backend/user-service
+    container_name: user-service
+    ports:
+      - "8764:8764"
+    environment:
+      <<: *business-env
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8762
+      SERVER_PORT: 8764
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/budgetquest
+      SPRING_DATASOURCE_USERNAME: budgetquest
+      SPRING_DATASOURCE_PASSWORD: budgetquest
+    depends_on:
+      - discovery-server
+      - config-server
+      - postgres
+      - keycloak
+
+  transaction-service:
+    build:
+      context: ./backend/transaction-service
+    container_name: transaction-service
+    ports:
+      - "8765:8765"
+    environment:
+      <<: *business-env
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8762
+      SERVER_PORT: 8765
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/budgetquest
+      SPRING_DATASOURCE_USERNAME: budgetquest
+      SPRING_DATASOURCE_PASSWORD: budgetquest
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+    depends_on:
+      - discovery-server
+      - config-server
+      - postgres
+      - rabbitmq
+      - keycloak
+
+  goal-service:
+    build:
+      context: ./backend/goal-service
+    container_name: goal-service
+    ports:
+      - "8766:8766"
+    environment:
+      <<: *business-env
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8762
+      SERVER_PORT: 8766
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/budgetquest
+      SPRING_DATASOURCE_USERNAME: budgetquest
+      SPRING_DATASOURCE_PASSWORD: budgetquest
+      SPRING_JPA_OPEN_IN_VIEW: false
+    depends_on:
+      - discovery-server
+      - config-server
+      - postgres
+      - keycloak
+
+  gamification-service:
+    build:
+      context: ./backend/gamification-service
+    container_name: gamification-service
+    ports:
+      - "8768:8768"
+    environment:
+      <<: *business-env
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8762
+      SERVER_PORT: 8768
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/budgetquest
+      SPRING_DATASOURCE_USERNAME: budgetquest
+      SPRING_DATASOURCE_PASSWORD: budgetquest
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+    depends_on:
+      - discovery-server
+      - config-server
+      - postgres
+      - rabbitmq
+      - keycloak
+
+  budget-service:
+    build:
+      context: ./backend/budget-service
+    container_name: budget-service
+    ports:
+      - "8767:8767"
+    environment:
+      <<: *business-env
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8762
+      SERVER_PORT: 8767
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/budgetquest
+      SPRING_DATASOURCE_USERNAME: budgetquest
+      SPRING_DATASOURCE_PASSWORD: budgetquest
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_OPEN_IN_VIEW: false
+    depends_on:
+      - discovery-server
+      - config-server
+      - postgres
+      - rabbitmq
+      - keycloak
+
+  insight-service:
+    build:
+      context: ./backend/insight-service
+    container_name: insight-service
+    ports:
+      - "8769:8769"
+    environment:
+      <<: *business-env
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8762
+      SERVER_PORT: 8769
+    depends_on:
+      - discovery-server
+      - config-server
+      - budget-service
+      - gamification-service
+      - keycloak
+
+volumes:
+  budgetquest-postgres-data:

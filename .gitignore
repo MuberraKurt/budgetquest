@@ -1,0 +1,23 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Build output
+target/
+dist/
+build/
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.iml
